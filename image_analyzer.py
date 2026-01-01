@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 import sys
 import numpy as np
@@ -85,11 +85,12 @@ class ImageAnalyzer(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Image Analyzer")
-        self.resize(1280, 760)
+        self.setWindowTitle("Advanced Image Analyzer")
+        self.resize(1400, 800)
 
         self.original_bgr = None
         self.working_bgr = None
+        self.visualization_mode = "combined"  # combined, hsi, histogram, rgb
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -105,16 +106,16 @@ class ImageAnalyzer(QMainWindow):
         sidebar_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.addWidget(sidebar, 0)
 
-        self.btn_import = QPushButton("Import Image")
+        self.btn_import = QPushButton("📁 Import Image")
         self.btn_import.clicked.connect(self.load_image)
         sidebar_layout.addWidget(self.btn_import)
 
-        self.btn_reset = QPushButton("Reset to Original")
+        self.btn_reset = QPushButton("🔄 Reset to Original")
         self.btn_reset.clicked.connect(self.reset_to_original)
         self.btn_reset.setEnabled(False)
         sidebar_layout.addWidget(self.btn_reset)
 
-        self.btn_clear = QPushButton("Clear")
+        self.btn_clear = QPushButton("🗑️ Clear")
         self.btn_clear.clicked.connect(self.clear_all)
         sidebar_layout.addWidget(self.btn_clear)
 
@@ -123,7 +124,45 @@ class ImageAnalyzer(QMainWindow):
         line1.setFrameShadow(QFrame.Sunken)
         sidebar_layout.addWidget(line1)
 
-        self.btn_ops = QPushButton("Operations")
+        # Visualization modes
+        self.btn_visualization = QPushButton("📊 Visualization Modes")
+        self.btn_visualization.setCheckable(True)
+        self.btn_visualization.clicked.connect(self.toggle_visualization_panel)
+        self.btn_visualization.setEnabled(False)
+        sidebar_layout.addWidget(self.btn_visualization)
+
+        self.visualization_panel = QFrame()
+        self.visualization_panel.setObjectName("VisPanel")
+        vis_layout = QVBoxLayout(self.visualization_panel)
+        vis_layout.setContentsMargins(0, 0, 0, 0)
+        vis_layout.setSpacing(8)
+
+        self.btn_show_hsi = QPushButton("🎨 HSI Components")
+        self.btn_show_hsi.clicked.connect(lambda: self.set_visualization_mode("hsi"))
+        vis_layout.addWidget(self.btn_show_hsi)
+
+        self.btn_show_histogram = QPushButton("📈 Histogram")
+        self.btn_show_histogram.clicked.connect(lambda: self.set_visualization_mode("histogram"))
+        vis_layout.addWidget(self.btn_show_histogram)
+
+        self.btn_show_rgb = QPushButton("🌈 RGB Channels")
+        self.btn_show_rgb.clicked.connect(lambda: self.set_visualization_mode("rgb"))
+        vis_layout.addWidget(self.btn_show_rgb)
+
+        self.btn_show_combined = QPushButton("🔗 Combined View")
+        self.btn_show_combined.clicked.connect(lambda: self.set_visualization_mode("combined"))
+        vis_layout.addWidget(self.btn_show_combined)
+
+        self.visualization_panel.setVisible(False)
+        sidebar_layout.addWidget(self.visualization_panel)
+
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.HLine)
+        line2.setFrameShadow(QFrame.Sunken)
+        sidebar_layout.addWidget(line2)
+
+        # Operations
+        self.btn_ops = QPushButton("⚙️ Operations")
         self.btn_ops.setCheckable(True)
         self.btn_ops.clicked.connect(self.toggle_ops_panel)
         self.btn_ops.setEnabled(False)
@@ -135,20 +174,56 @@ class ImageAnalyzer(QMainWindow):
         ops_layout.setContentsMargins(0, 0, 0, 0)
         ops_layout.setSpacing(8)
 
-        self.btn_smooth = QPushButton("Smoothing")
+        self.btn_smooth = QPushButton("🔹 Smoothing")
         self.btn_smooth.clicked.connect(self.apply_smoothing)
         ops_layout.addWidget(self.btn_smooth)
 
-        self.btn_sharp = QPushButton("Sharpening")
+        self.btn_sharp = QPushButton("🔸 Sharpening")
         self.btn_sharp.clicked.connect(self.apply_sharpening)
         ops_layout.addWidget(self.btn_sharp)
 
-        self.btn_histeq = QPushButton("Histogram Equalization")
+        self.btn_histeq = QPushButton("📊 Histogram Equalization")
         self.btn_histeq.clicked.connect(self.apply_hist_equalization)
         ops_layout.addWidget(self.btn_histeq)
 
         self.ops_panel.setVisible(False)
         sidebar_layout.addWidget(self.ops_panel)
+
+        # Advanced Filters
+        self.btn_filters = QPushButton("🎛️ Frequency Domain Filters")
+        self.btn_filters.setCheckable(True)
+        self.btn_filters.clicked.connect(self.toggle_filters_panel)
+        self.btn_filters.setEnabled(False)
+        sidebar_layout.addWidget(self.btn_filters)
+
+        self.filters_panel = QFrame()
+        self.filters_panel.setObjectName("FiltersPanel")
+        filters_layout = QVBoxLayout(self.filters_panel)
+        filters_layout.setContentsMargins(0, 0, 0, 0)
+        filters_layout.setSpacing(8)
+
+        self.btn_lowpass = QPushButton("🔽 Low Pass Filter")
+        self.btn_lowpass.clicked.connect(lambda: self.apply_filter("lowpass"))
+        filters_layout.addWidget(self.btn_lowpass)
+
+        self.btn_highpass = QPushButton("🔼 High Pass Filter")
+        self.btn_highpass.clicked.connect(lambda: self.apply_filter("highpass"))
+        filters_layout.addWidget(self.btn_highpass)
+
+        self.btn_notchpass = QPushButton("🎯 Notch Pass Filter")
+        self.btn_notchpass.clicked.connect(lambda: self.apply_filter("notchpass"))
+        filters_layout.addWidget(self.btn_notchpass)
+
+        self.btn_notchreject = QPushButton("🚫 Notch Reject Filter")
+        self.btn_notchreject.clicked.connect(lambda: self.apply_filter("notchreject"))
+        filters_layout.addWidget(self.btn_notchreject)
+
+        self.btn_gaussian = QPushButton("⛰️ Gaussian Filter")
+        self.btn_gaussian.clicked.connect(lambda: self.apply_filter("gaussian"))
+        filters_layout.addWidget(self.btn_gaussian)
+
+        self.filters_panel.setVisible(False)
+        sidebar_layout.addWidget(self.filters_panel)
 
         self.status_label = QLabel("Status: No image loaded")
         self.status_label.setWordWrap(True)
@@ -182,17 +257,17 @@ class ImageAnalyzer(QMainWindow):
 
         zoom_btn_row = QHBoxLayout()
 
-        self.btn_fit = QPushButton("Fit to Window")
+        self.btn_fit = QPushButton("🔍 Fit to Window")
         self.btn_fit.clicked.connect(self.fit_to_window)
         self.btn_fit.setEnabled(False)
         zoom_btn_row.addWidget(self.btn_fit)
 
-        self.btn_reset_zoom = QPushButton("Reset Zoom")
+        self.btn_reset_zoom = QPushButton("🗺️ Reset Zoom")
         self.btn_reset_zoom.clicked.connect(self.reset_zoom)
         self.btn_reset_zoom.setEnabled(False)
         zoom_btn_row.addWidget(self.btn_reset_zoom)
 
-        self.btn_export = QPushButton("Export Image")
+        self.btn_export = QPushButton("💾 Export Image")
         self.btn_export.clicked.connect(self.export_image)
         self.btn_export.setEnabled(False)
         zoom_btn_row.addWidget(self.btn_export)
@@ -210,7 +285,7 @@ class ImageAnalyzer(QMainWindow):
         top_row.addWidget(stats_group, 2)
 
         # Histogram group
-        hist_group = QGroupBox("Histograms")
+        hist_group = QGroupBox("Visualizations")
         hist_layout = QVBoxLayout(hist_group)
         self.canvas = MplCanvas()
         hist_layout.addWidget(self.canvas)
@@ -238,8 +313,8 @@ class ImageAnalyzer(QMainWindow):
                 background: #0f1a30;
                 border: 1px solid #26324a;
                 border-radius: 14px;
-                min-width: 240px;
-                max-width: 260px;
+                min-width: 280px;
+                max-width: 300px;
             }
 
             #Content {
@@ -264,12 +339,24 @@ class ImageAnalyzer(QMainWindow):
                 color: #9fb1d8;
             }
 
-            #OpsPanel QPushButton {
+            #VisPanel QPushButton,
+            #OpsPanel QPushButton,
+            #FiltersPanel QPushButton {
                 background: #162a52;
                 border: 1px solid #26324a;
                 padding-left: 14px;
+                font-size: 12px;
             }
+            #VisPanel QPushButton:hover { background: #1a3263; }
             #OpsPanel QPushButton:hover { background: #1a3263; }
+            #FiltersPanel QPushButton:hover { background: #1a3263; }
+
+            #VisPanel QPushButton {
+                background: #2a1a52;
+            }
+            #FiltersPanel QPushButton {
+                background: #521a2a;
+            }
 
             QTextEdit {
                 background: #0f1626;
@@ -283,6 +370,7 @@ class ImageAnalyzer(QMainWindow):
             #StatusLabel {
                 color: #cbd6f1;
                 padding-top: 6px;
+                font-size: 11px;
             }
         """)
 
@@ -293,14 +381,41 @@ class ImageAnalyzer(QMainWindow):
     def set_status(self, text):
         self.status_label.setText(f"Status: {text}")
 
+    def toggle_visualization_panel(self):
+        self.visualization_panel.setVisible(self.btn_visualization.isChecked())
+
     def toggle_ops_panel(self):
         self.ops_panel.setVisible(self.btn_ops.isChecked())
 
+    def toggle_filters_panel(self):
+        self.filters_panel.setVisible(self.btn_filters.isChecked())
+
+    def set_visualization_mode(self, mode):
+        self.visualization_mode = mode
+        self.btn_visualization.setChecked(False)
+        self.visualization_panel.setVisible(False)
+        self.update_analysis()
+        mode_names = {
+            "hsi": "HSI Components",
+            "histogram": "Histogram View",
+            "rgb": "RGB Channels",
+            "combined": "Combined View"
+        }
+        self.set_status(f"Visualization mode: {mode_names[mode]}")
+
     def enable_image_actions(self, enabled):
         self.btn_reset.setEnabled(enabled)
+        self.btn_visualization.setEnabled(enabled)
         self.btn_ops.setEnabled(enabled)
+        self.btn_filters.setEnabled(enabled)
+        
+        self.btn_visualization.setChecked(False)
         self.btn_ops.setChecked(False)
+        self.btn_filters.setChecked(False)
+        
+        self.visualization_panel.setVisible(False)
         self.ops_panel.setVisible(False)
+        self.filters_panel.setVisible(False)
 
         self.btn_fit.setEnabled(enabled)
         self.btn_reset_zoom.setEnabled(enabled)
@@ -411,26 +526,52 @@ class ImageAnalyzer(QMainWindow):
         text += channel_stats(I, "I")
 
         self.stats_box.setPlainText(text)
-        self.plot_histograms(R, G, B, H, S, I)
+        self.plot_visualizations(R, G, B, H, S, I)
 
-    def plot_histograms(self, R, G, B, H, S, I):
+    def plot_visualizations(self, R, G, B, H, S, I):
         ax = self.canvas.ax
         ax.clear()
 
-        ax.hist((R * 255).ravel(), bins=256, alpha=0.35, label="R", range=(0, 255))
-        ax.hist((G * 255).ravel(), bins=256, alpha=0.35, label="G", range=(0, 255))
-        ax.hist((B * 255).ravel(), bins=256, alpha=0.35, label="B", range=(0, 255))
+        if self.visualization_mode == "combined":
+            # Original combined view
+            ax.hist((R * 255).ravel(), bins=256, alpha=0.35, label="R", range=(0, 255), color='red')
+            ax.hist((G * 255).ravel(), bins=256, alpha=0.35, label="G", range=(0, 255), color='green')
+            ax.hist((B * 255).ravel(), bins=256, alpha=0.35, label="B", range=(0, 255), color='blue')
+            ax.set_title("RGB Histograms")
+            ax.set_xlabel("Value (0-255)")
+            
+        elif self.visualization_mode == "hsi":
+            # HSI components
+            ax.hist(H.ravel(), bins=180, alpha=0.7, label="Hue", range=(0, 360), color='purple')
+            ax.hist(S.ravel(), bins=100, alpha=0.7, label="Saturation", range=(0, 1), color='orange')
+            ax.hist(I.ravel(), bins=100, alpha=0.7, label="Intensity", range=(0, 1), color='cyan')
+            ax.set_title("HSI Components")
+            ax.set_xlabel("Value")
+            
+        elif self.visualization_mode == "histogram":
+            # Enhanced histogram view
+            ax.hist((R * 255).ravel(), bins=256, alpha=0.6, label="Red", range=(0, 255), color='red', histtype='stepfilled')
+            ax.hist((G * 255).ravel(), bins=256, alpha=0.6, label="Green", range=(0, 255), color='green', histtype='stepfilled')
+            ax.hist((B * 255).ravel(), bins=256, alpha=0.6, label="Blue", range=(0, 255), color='blue', histtype='stepfilled')
+            ax.hist(I.ravel() * 255, bins=256, alpha=0.3, label="Intensity", range=(0, 255), color='gray', histtype='step')
+            ax.set_title("Enhanced Histograms")
+            ax.set_xlabel("Value (0-255)")
+            
+        elif self.visualization_mode == "rgb":
+            # RGB channels separately
+            colors = ['red', 'green', 'blue']
+            channels = [R*255, G*255, B*255]
+            labels = ['Red Channel', 'Green Channel', 'Blue Channel']
+            
+            for i, (channel, color, label) in enumerate(zip(channels, colors, labels)):
+                ax.hist(channel.ravel(), bins=256, alpha=0.7, label=label, 
+                       range=(0, 255), color=color, histtype='stepfilled' if i==0 else 'step')
+            ax.set_title("RGB Channel Distributions")
+            ax.set_xlabel("Value (0-255)")
 
-        ax.hist(H.ravel(), bins=180, alpha=0.25, label="H", range=(0, 360))
-        ax.hist(S.ravel(), bins=100, alpha=0.25, label="S", range=(0, 1))
-        ax.hist(I.ravel(), bins=100, alpha=0.25, label="I", range=(0, 1))
-
-        ax.set_title("RGB and HSI Histograms")
-        ax.set_xlabel("Value")
         ax.set_ylabel("Pixel Count")
-        ax.legend()
+        ax.legend(loc='upper right')
         ax.grid(True, alpha=0.2)
-
         self.canvas.fig.tight_layout()
         self.canvas.draw()
 
@@ -464,6 +605,99 @@ class ImageAnalyzer(QMainWindow):
         ycrcb_eq = cv2.merge([y_eq, cr, cb])
         self.working_bgr = cv2.cvtColor(ycrcb_eq, cv2.COLOR_YCrCb2BGR)
         self.set_status("Applied histogram equalization (luminance)")
+        self.update_display()
+        self.update_analysis()
+
+    # ---------- Frequency Domain Filters ----------
+
+    def create_filter(self, shape, filter_type, cutoff=30, order=2):
+        """Create frequency domain filter"""
+        rows, cols = shape
+        crow, ccol = rows // 2, cols // 2
+        
+        # Create distance matrix
+        y, x = np.ogrid[:rows, :cols]
+        distance = np.sqrt((x - ccol)**2 + (y - crow)**2)
+        
+        if filter_type == "lowpass":
+            # Ideal low-pass filter
+            filter_mask = np.zeros((rows, cols))
+            filter_mask[distance <= cutoff] = 1
+            
+        elif filter_type == "highpass":
+            # Ideal high-pass filter
+            filter_mask = np.ones((rows, cols))
+            filter_mask[distance <= cutoff] = 0
+            
+        elif filter_type == "gaussian":
+            # Gaussian filter
+            filter_mask = np.exp(-(distance**2) / (2 * (cutoff**2)))
+            
+        elif filter_type == "notchpass":
+            # Notch pass filter (removes specific frequencies)
+            filter_mask = np.ones((rows, cols))
+            # Create multiple notch points
+            notch_points = [(crow + 30, ccol + 30), (crow - 30, ccol - 30),
+                           (crow + 30, ccol - 30), (crow - 30, ccol + 30)]
+            for point in notch_points:
+                y, x = point
+                ry, rx = np.ogrid[-y:rows-y, -x:cols-x]
+                mask = rx**2 + ry**2 <= cutoff**2
+                filter_mask[mask] = 0
+                
+        elif filter_type == "notchreject":
+            # Notch reject filter (opposite of notch pass)
+            filter_mask = np.zeros((rows, cols))
+            # Create multiple notch points
+            notch_points = [(crow + 30, ccol + 30), (crow - 30, ccol - 30),
+                           (crow + 30, ccol - 30), (crow - 30, ccol + 30)]
+            for point in notch_points:
+                y, x = point
+                ry, rx = np.ogrid[-y:rows-y, -x:cols-x]
+                mask = rx**2 + ry**2 <= cutoff**2
+                filter_mask[mask] = 1
+        
+        return filter_mask
+
+    def apply_filter(self, filter_type):
+        if self.working_bgr is None:
+            return
+            
+        # Apply filter to each channel
+        filtered_channels = []
+        for i in range(3):
+            channel = self.working_bgr[:, :, i].astype(np.float32)
+            
+            # Perform FFT
+            f = np.fft.fft2(channel)
+            fshift = np.fft.fftshift(f)
+            
+            # Create filter
+            rows, cols = channel.shape
+            filter_mask = self.create_filter((rows, cols), filter_type, cutoff=30)
+            
+            # Apply filter
+            fshift_filtered = fshift * filter_mask
+            
+            # Inverse FFT
+            f_ishift = np.fft.ifftshift(fshift_filtered)
+            img_back = np.fft.ifft2(f_ishift)
+            img_back = np.abs(img_back)
+            
+            filtered_channels.append(img_back)
+        
+        # Combine channels
+        self.working_bgr = np.stack(filtered_channels, axis=2).astype(np.uint8)
+        
+        filter_names = {
+            "lowpass": "Low Pass",
+            "highpass": "High Pass", 
+            "gaussian": "Gaussian",
+            "notchpass": "Notch Pass",
+            "notchreject": "Notch Reject"
+        }
+        
+        self.set_status(f"Applied {filter_names[filter_type]} Filter")
         self.update_display()
         self.update_analysis()
 
