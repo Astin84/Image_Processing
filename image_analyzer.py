@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QSizePolicy, QFrame,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 )
-from PySide6.QtGui import QPixmap, QImage, QWheelEvent
+from PySide6.QtGui import QPixmap, QImage, QWheelEvent, QFont
 from PySide6.QtCore import Qt
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -60,8 +60,8 @@ def channel_stats(arr, name):
 
 class MplCanvas(FigureCanvas):
     def __init__(self):
-        self.fig = Figure(figsize=(7, 4), dpi=100)
-        self.ax = self.fig.add_subplot(111)
+        self.fig = Figure(figsize=(7, 4), dpi=100, facecolor='#ECE9D8')
+        self.ax = self.fig.add_subplot(111, facecolor='#ECE9D8')
         super().__init__(self.fig)
 
 
@@ -85,301 +85,463 @@ class ImageAnalyzer(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Advanced Image Analyzer")
+        self.setWindowTitle("Image Analyzer - Windows XP Style")
         self.resize(1400, 800)
 
         self.original_bgr = None
         self.working_bgr = None
-        self.visualization_mode = "combined"  # combined, hsi, histogram, rgb
+        self.visualization_mode = "combined"
 
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(14, 14, 14, 14)
-        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(8)
 
-        # Sidebar
+        # Sidebar - Windows XP Task Pane Style
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
+        sidebar.setFrameShape(QFrame.StyledPanel)
+        sidebar.setFrameShadow(QFrame.Raised)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setSpacing(10)
-        sidebar_layout.setContentsMargins(12, 12, 12, 12)
+        sidebar_layout.setSpacing(6)
+        sidebar_layout.setContentsMargins(4, 8, 4, 8)
         main_layout.addWidget(sidebar, 0)
 
-        self.btn_import = QPushButton("📁 Import Image")
-        self.btn_import.clicked.connect(self.load_image)
-        sidebar_layout.addWidget(self.btn_import)
+        # Windows XP style title
+        title_label = QLabel("Image Tasks")
+        title_label.setObjectName("TaskTitle")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_font = QFont("Tahoma", 10, QFont.Bold)
+        title_label.setFont(title_font)
+        sidebar_layout.addWidget(title_label)
 
-        self.btn_reset = QPushButton("🔄 Reset to Original")
-        self.btn_reset.clicked.connect(self.reset_to_original)
+        # File tasks group
+        file_group = QGroupBox("File Tasks")
+        file_group.setObjectName("FileGroup")
+        file_layout = QVBoxLayout(file_group)
+        file_layout.setSpacing(4)
+        file_layout.setContentsMargins(8, 15, 8, 8)
+
+        self.btn_import = self.create_xp_button("📂 Open image...", self.load_image)
+        self.btn_reset = self.create_xp_button("↩️ Restore original", self.reset_to_original)
         self.btn_reset.setEnabled(False)
-        sidebar_layout.addWidget(self.btn_reset)
+        self.btn_export = self.create_xp_button("💾 Save image as...", self.export_image)
+        self.btn_export.setEnabled(False)
+        self.btn_clear = self.create_xp_button("🗑️ Clear workspace", self.clear_all)
 
-        self.btn_clear = QPushButton("🗑️ Clear")
-        self.btn_clear.clicked.connect(self.clear_all)
-        sidebar_layout.addWidget(self.btn_clear)
+        file_layout.addWidget(self.btn_import)
+        file_layout.addWidget(self.btn_reset)
+        file_layout.addWidget(self.btn_export)
+        file_layout.addWidget(self.btn_clear)
+        
+        sidebar_layout.addWidget(file_group)
 
-        line1 = QFrame()
-        line1.setFrameShape(QFrame.HLine)
-        line1.setFrameShadow(QFrame.Sunken)
-        sidebar_layout.addWidget(line1)
+        # Visualization tasks group
+        vis_group = QGroupBox("View Options")
+        vis_group.setObjectName("VisGroup")
+        vis_layout = QVBoxLayout(vis_group)
+        vis_layout.setSpacing(4)
+        vis_layout.setContentsMargins(8, 15, 8, 8)
 
-        # Visualization modes
-        self.btn_visualization = QPushButton("📊 Visualization Modes")
+        self.btn_visualization = self.create_xp_button("📊 Change view type", None)
         self.btn_visualization.setCheckable(True)
         self.btn_visualization.clicked.connect(self.toggle_visualization_panel)
         self.btn_visualization.setEnabled(False)
-        sidebar_layout.addWidget(self.btn_visualization)
+        vis_layout.addWidget(self.btn_visualization)
 
         self.visualization_panel = QFrame()
-        self.visualization_panel.setObjectName("VisPanel")
-        vis_layout = QVBoxLayout(self.visualization_panel)
-        vis_layout.setContentsMargins(0, 0, 0, 0)
-        vis_layout.setSpacing(8)
+        self.visualization_panel.setObjectName("SubPanel")
+        vis_sub_layout = QVBoxLayout(self.visualization_panel)
+        vis_sub_layout.setSpacing(2)
+        vis_sub_layout.setContentsMargins(20, 6, 6, 6)
 
-        self.btn_show_hsi = QPushButton("🎨 HSI Components")
-        self.btn_show_hsi.clicked.connect(lambda: self.set_visualization_mode("hsi"))
-        vis_layout.addWidget(self.btn_show_hsi)
+        self.btn_show_hsi = self.create_sub_button("🎨 HSI Components", "hsi")
+        self.btn_show_histogram = self.create_sub_button("📈 Histogram only", "histogram")
+        self.btn_show_rgb = self.create_sub_button("🌈 RGB Channels", "rgb")
+        self.btn_show_combined = self.create_sub_button("🔗 Combined view", "combined")
 
-        self.btn_show_histogram = QPushButton("📈 Histogram")
-        self.btn_show_histogram.clicked.connect(lambda: self.set_visualization_mode("histogram"))
-        vis_layout.addWidget(self.btn_show_histogram)
-
-        self.btn_show_rgb = QPushButton("🌈 RGB Channels")
-        self.btn_show_rgb.clicked.connect(lambda: self.set_visualization_mode("rgb"))
-        vis_layout.addWidget(self.btn_show_rgb)
-
-        self.btn_show_combined = QPushButton("🔗 Combined View")
-        self.btn_show_combined.clicked.connect(lambda: self.set_visualization_mode("combined"))
-        vis_layout.addWidget(self.btn_show_combined)
+        vis_sub_layout.addWidget(self.btn_show_hsi)
+        vis_sub_layout.addWidget(self.btn_show_histogram)
+        vis_sub_layout.addWidget(self.btn_show_rgb)
+        vis_sub_layout.addWidget(self.btn_show_combined)
 
         self.visualization_panel.setVisible(False)
-        sidebar_layout.addWidget(self.visualization_panel)
+        vis_layout.addWidget(self.visualization_panel)
+        
+        sidebar_layout.addWidget(vis_group)
 
-        line2 = QFrame()
-        line2.setFrameShape(QFrame.HLine)
-        line2.setFrameShadow(QFrame.Sunken)
-        sidebar_layout.addWidget(line2)
+        # Image processing tasks group
+        proc_group = QGroupBox("Image Processing")
+        proc_group.setObjectName("ProcGroup")
+        proc_layout = QVBoxLayout(proc_group)
+        proc_layout.setSpacing(4)
+        proc_layout.setContentsMargins(8, 15, 8, 8)
 
-        # Operations
-        self.btn_ops = QPushButton("⚙️ Operations")
+        self.btn_ops = self.create_xp_button("⚙️ Basic operations", None)
         self.btn_ops.setCheckable(True)
         self.btn_ops.clicked.connect(self.toggle_ops_panel)
         self.btn_ops.setEnabled(False)
-        sidebar_layout.addWidget(self.btn_ops)
+        proc_layout.addWidget(self.btn_ops)
 
         self.ops_panel = QFrame()
-        self.ops_panel.setObjectName("OpsPanel")
-        ops_layout = QVBoxLayout(self.ops_panel)
-        ops_layout.setContentsMargins(0, 0, 0, 0)
-        ops_layout.setSpacing(8)
+        self.ops_panel.setObjectName("SubPanel")
+        ops_sub_layout = QVBoxLayout(self.ops_panel)
+        ops_sub_layout.setSpacing(2)
+        ops_sub_layout.setContentsMargins(20, 6, 6, 6)
 
-        self.btn_smooth = QPushButton("🔹 Smoothing")
-        self.btn_smooth.clicked.connect(self.apply_smoothing)
-        ops_layout.addWidget(self.btn_smooth)
+        self.btn_smooth = self.create_sub_button("🔹 Smooth image", self.apply_smoothing)
+        self.btn_sharp = self.create_sub_button("🔸 Sharpen image", self.apply_sharpening)
+        self.btn_histeq = self.create_sub_button("📊 Equalize histogram", self.apply_hist_equalization)
 
-        self.btn_sharp = QPushButton("🔸 Sharpening")
-        self.btn_sharp.clicked.connect(self.apply_sharpening)
-        ops_layout.addWidget(self.btn_sharp)
-
-        self.btn_histeq = QPushButton("📊 Histogram Equalization")
-        self.btn_histeq.clicked.connect(self.apply_hist_equalization)
-        ops_layout.addWidget(self.btn_histeq)
+        ops_sub_layout.addWidget(self.btn_smooth)
+        ops_sub_layout.addWidget(self.btn_sharp)
+        ops_sub_layout.addWidget(self.btn_histeq)
 
         self.ops_panel.setVisible(False)
-        sidebar_layout.addWidget(self.ops_panel)
+        proc_layout.addWidget(self.ops_panel)
+        
+        sidebar_layout.addWidget(proc_group)
 
-        # Advanced Filters
-        self.btn_filters = QPushButton("🎛️ Frequency Domain Filters")
+        # Advanced filters group
+        filter_group = QGroupBox("Advanced Filters")
+        filter_group.setObjectName("FilterGroup")
+        filter_layout = QVBoxLayout(filter_group)
+        filter_layout.setSpacing(4)
+        filter_layout.setContentsMargins(8, 15, 8, 8)
+
+        self.btn_filters = self.create_xp_button("🎛️ Frequency filters", None)
         self.btn_filters.setCheckable(True)
         self.btn_filters.clicked.connect(self.toggle_filters_panel)
         self.btn_filters.setEnabled(False)
-        sidebar_layout.addWidget(self.btn_filters)
+        filter_layout.addWidget(self.btn_filters)
 
         self.filters_panel = QFrame()
-        self.filters_panel.setObjectName("FiltersPanel")
-        filters_layout = QVBoxLayout(self.filters_panel)
-        filters_layout.setContentsMargins(0, 0, 0, 0)
-        filters_layout.setSpacing(8)
+        self.filters_panel.setObjectName("SubPanel")
+        filters_sub_layout = QVBoxLayout(self.filters_panel)
+        filters_sub_layout.setSpacing(2)
+        filters_sub_layout.setContentsMargins(20, 6, 6, 6)
 
-        self.btn_lowpass = QPushButton("🔽 Low Pass Filter")
-        self.btn_lowpass.clicked.connect(lambda: self.apply_filter("lowpass"))
-        filters_layout.addWidget(self.btn_lowpass)
+        self.btn_lowpass = self.create_sub_button("🔽 Low Pass filter", lambda: self.apply_filter("lowpass"))
+        self.btn_highpass = self.create_sub_button("🔼 High Pass filter", lambda: self.apply_filter("highpass"))
+        self.btn_notchpass = self.create_sub_button("🎯 Notch Pass filter", lambda: self.apply_filter("notchpass"))
+        self.btn_notchreject = self.create_sub_button("🚫 Notch Reject filter", lambda: self.apply_filter("notchreject"))
+        self.btn_gaussian = self.create_sub_button("⛰️ Gaussian filter", lambda: self.apply_filter("gaussian"))
 
-        self.btn_highpass = QPushButton("🔼 High Pass Filter")
-        self.btn_highpass.clicked.connect(lambda: self.apply_filter("highpass"))
-        filters_layout.addWidget(self.btn_highpass)
-
-        self.btn_notchpass = QPushButton("🎯 Notch Pass Filter")
-        self.btn_notchpass.clicked.connect(lambda: self.apply_filter("notchpass"))
-        filters_layout.addWidget(self.btn_notchpass)
-
-        self.btn_notchreject = QPushButton("🚫 Notch Reject Filter")
-        self.btn_notchreject.clicked.connect(lambda: self.apply_filter("notchreject"))
-        filters_layout.addWidget(self.btn_notchreject)
-
-        self.btn_gaussian = QPushButton("⛰️ Gaussian Filter")
-        self.btn_gaussian.clicked.connect(lambda: self.apply_filter("gaussian"))
-        filters_layout.addWidget(self.btn_gaussian)
+        filters_sub_layout.addWidget(self.btn_lowpass)
+        filters_sub_layout.addWidget(self.btn_highpass)
+        filters_sub_layout.addWidget(self.btn_notchpass)
+        filters_sub_layout.addWidget(self.btn_notchreject)
+        filters_sub_layout.addWidget(self.btn_gaussian)
 
         self.filters_panel.setVisible(False)
-        sidebar_layout.addWidget(self.filters_panel)
+        filter_layout.addWidget(self.filters_panel)
+        
+        sidebar_layout.addWidget(filter_group)
 
-        self.status_label = QLabel("Status: No image loaded")
-        self.status_label.setWordWrap(True)
+        # Status bar at bottom
+        status_frame = QFrame()
+        status_frame.setObjectName("StatusFrame")
+        status_layout = QHBoxLayout(status_frame)
+        status_layout.setContentsMargins(6, 4, 6, 4)
+        
+        self.status_label = QLabel("Ready")
         self.status_label.setObjectName("StatusLabel")
-        sidebar_layout.addWidget(self.status_label)
+        status_font = QFont("Tahoma", 8)
+        self.status_label.setFont(status_font)
+        status_layout.addWidget(self.status_label)
+        
         sidebar_layout.addStretch(1)
+        sidebar_layout.addWidget(status_frame)
 
-        # Content
+        # Content area - Windows XP Work Area
         content = QFrame()
         content.setObjectName("Content")
+        content.setFrameShape(QFrame.StyledPanel)
+        content.setFrameShadow(QFrame.Sunken)
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(12, 12, 12, 12)
-        content_layout.setSpacing(12)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        content_layout.setSpacing(8)
         main_layout.addWidget(content, 1)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(12)
-        content_layout.addLayout(top_row, 3)
+        # Toolbar-like area
+        toolbar = QFrame()
+        toolbar.setObjectName("Toolbar")
+        toolbar.setFixedHeight(36)
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(6, 2, 6, 2)
+        toolbar_layout.setSpacing(4)
 
-        # Preview group
-        image_group = QGroupBox("Preview")
-        image_layout = QVBoxLayout(image_group)
+        self.btn_fit = self.create_tool_button("🔍 Fit", self.fit_to_window)
+        self.btn_fit.setEnabled(False)
+        self.btn_reset_zoom = self.create_tool_button("🗺️ 1:1", self.reset_zoom)
+        self.btn_reset_zoom.setEnabled(False)
+        toolbar_layout.addWidget(self.btn_fit)
+        toolbar_layout.addWidget(self.btn_reset_zoom)
+        toolbar_layout.addStretch(1)
+        
+        view_label = QLabel("Image View")
+        view_label.setFont(title_font)
+        toolbar_layout.addWidget(view_label)
+        toolbar_layout.addStretch(1)
+
+        content_layout.addWidget(toolbar)
+
+        # Main work area (image and stats)
+        work_area = QHBoxLayout()
+        work_area.setSpacing(8)
+        content_layout.addLayout(work_area, 3)
+
+        # Image preview area
+        preview_frame = QFrame()
+        preview_frame.setObjectName("PreviewFrame")
+        preview_frame.setFrameShape(QFrame.StyledPanel)
+        preview_frame.setFrameShadow(QFrame.Sunken)
+        preview_layout = QVBoxLayout(preview_frame)
+        preview_layout.setContentsMargins(4, 4, 4, 4)
 
         self.scene = QGraphicsScene(self)
         self.image_view = ZoomableGraphicsView(self)
+        self.image_view.setObjectName("ImageView")
         self.image_view.setScene(self.scene)
         self.pix_item = QGraphicsPixmapItem()
         self.scene.addItem(self.pix_item)
 
-        image_layout.addWidget(self.image_view)
+        preview_layout.addWidget(self.image_view)
+        work_area.addWidget(preview_frame, 3)
 
-        zoom_btn_row = QHBoxLayout()
+        # Statistics panel
+        stats_frame = QFrame()
+        stats_frame.setObjectName("StatsFrame")
+        stats_frame.setFrameShape(QFrame.StyledPanel)
+        stats_frame.setFrameShadow(QFrame.Raised)
+        stats_layout = QVBoxLayout(stats_frame)
+        stats_layout.setContentsMargins(8, 8, 8, 8)
 
-        self.btn_fit = QPushButton("🔍 Fit to Window")
-        self.btn_fit.clicked.connect(self.fit_to_window)
-        self.btn_fit.setEnabled(False)
-        zoom_btn_row.addWidget(self.btn_fit)
+        stats_title = QLabel("Image Statistics")
+        stats_title.setObjectName("StatsTitle")
+        stats_title.setFont(title_font)
+        stats_title.setAlignment(Qt.AlignCenter)
+        stats_layout.addWidget(stats_title)
 
-        self.btn_reset_zoom = QPushButton("🗺️ Reset Zoom")
-        self.btn_reset_zoom.clicked.connect(self.reset_zoom)
-        self.btn_reset_zoom.setEnabled(False)
-        zoom_btn_row.addWidget(self.btn_reset_zoom)
-
-        self.btn_export = QPushButton("💾 Export Image")
-        self.btn_export.clicked.connect(self.export_image)
-        self.btn_export.setEnabled(False)
-        zoom_btn_row.addWidget(self.btn_export)
-
-        image_layout.addLayout(zoom_btn_row)
-        top_row.addWidget(image_group, 3)
-
-        # Stats group
-        stats_group = QGroupBox("RGB and HSI Indexes")
-        stats_layout = QVBoxLayout(stats_group)
         self.stats_box = QTextEdit()
-        self.stats_box.setReadOnly(True)
         self.stats_box.setObjectName("StatsBox")
+        self.stats_box.setReadOnly(True)
         stats_layout.addWidget(self.stats_box)
-        top_row.addWidget(stats_group, 2)
+        
+        work_area.addWidget(stats_frame, 2)
 
-        # Histogram group
-        hist_group = QGroupBox("Visualizations")
-        hist_layout = QVBoxLayout(hist_group)
+        # Histogram/Visualization area
+        vis_frame = QFrame()
+        vis_frame.setObjectName("VisFrame")
+        vis_frame.setFrameShape(QFrame.StyledPanel)
+        vis_frame.setFrameShadow(QFrame.Raised)
+        vis_layout = QVBoxLayout(vis_frame)
+        vis_layout.setContentsMargins(8, 8, 8, 8)
+
+        vis_title = QLabel("Visualization")
+        vis_title.setObjectName("VisTitle")
+        vis_title.setFont(title_font)
+        vis_title.setAlignment(Qt.AlignCenter)
+        vis_layout.addWidget(vis_title)
+
         self.canvas = MplCanvas()
-        hist_layout.addWidget(self.canvas)
-        content_layout.addWidget(hist_group, 2)
+        vis_layout.addWidget(self.canvas)
+        
+        content_layout.addWidget(vis_frame, 2)
 
-        # Style
+        # Windows XP StyleSheet
         self.setStyleSheet("""
-            QMainWindow { background: #af6a00; }
-            QGroupBox {
-                color: #e8eefc;
-                border: 1px solid #26324a;
-                border-radius: 12px;
-                margin-top: 10px;
-                padding: 10px;
-                background: rgba(255,255,255,0.02);
+            QMainWindow {
+                background-color: #D4D0C8;
             }
+            
+            QFrame#Sidebar {
+                background-color: #ECE9D8;
+                border: 1px solid #808080;
+                border-radius: 4px;
+            }
+            
+            QFrame#Content {
+                background-color: #FFFFFF;
+                border: 2px solid #808080;
+            }
+            
+            QFrame#PreviewFrame, QFrame#StatsFrame, QFrame#VisFrame {
+                background-color: #FFFFFF;
+            }
+            
+            QFrame#Toolbar {
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #ECE9D8, stop:1 #D4D0C8);
+                border: 1px solid #808080;
+                border-radius: 3px;
+            }
+            
+            QFrame#StatusFrame {
+                background-color: #ECE9D8;
+                border: 1px solid #808080;
+                border-radius: 3px;
+            }
+            
+            QFrame#SubPanel {
+                background-color: #F8F8F8;
+                border: 1px solid #C0C0C0;
+                border-radius: 2px;
+            }
+            
+            QGroupBox {
+                color: #000080;
+                font-weight: bold;
+                border: 1px solid #808080;
+                border-radius: 5px;
+                margin-top: 10px;
+                background-color: #ECE9D8;
+            }
+            
+            QGroupBox#FileGroup, QGroupBox#VisGroup, QGroupBox#ProcGroup, QGroupBox#FilterGroup {
+                background-color: #ECE9D8;
+            }
+            
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px;
-                font-weight: 600;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: #ECE9D8;
             }
-
-            #Sidebar {
-                background: #0f1a30;
-                border: 1px solid #26324a;
-                border-radius: 14px;
-                min-width: 280px;
-                max-width: 300px;
-            }
-
-            #Content {
-                background: rgba(255,255,255,0.01);
-                border: 1px solid #26324a;
-                border-radius: 14px;
-            }
-
+            
+            /* Windows XP Style Buttons */
             QPushButton {
-                background: #1f6feb;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                padding: 10px 12px;
-                font-weight: 600;
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #F9F9F9, stop:0.1 #E8E8E8, stop:0.5 #E0E0E0, stop:0.9 #D8D8D8, stop:1 #C8C8C8);
+                border: 1px solid #808080;
+                border-radius: 3px;
+                padding: 4px 12px;
+                font-family: Tahoma;
+                font-size: 9pt;
+                color: #000000;
                 text-align: left;
+                min-height: 24px;
             }
-            QPushButton:hover { background: #2b7bff; }
-            QPushButton:pressed { background: #1a5bd1; }
+            
+            QPushButton:hover {
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #FFFFFF, stop:0.1 #F0F0F0, stop:0.5 #E8E8E8, stop:0.9 #E0E0E0, stop:1 #D0D0D0);
+                border: 1px solid #000080;
+            }
+            
+            QPushButton:pressed {
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #C8C8C8, stop:0.1 #D8D8D8, stop:0.5 #E0E0E0, stop:0.9 #E8E8E8, stop:1 #F9F9F9);
+                padding: 5px 11px 3px 13px;
+            }
+            
             QPushButton:disabled {
-                background: #2a3550;
-                color: #9fb1d8;
+                background-color: #E0E0E0;
+                color: #808080;
+                border: 1px solid #C0C0C0;
             }
-
-            #VisPanel QPushButton,
-            #OpsPanel QPushButton,
-            #FiltersPanel QPushButton {
-                background: #162a52;
-                border: 1px solid #26324a;
-                padding-left: 14px;
-                font-size: 12px;
+            
+            /* Toolbar buttons */
+            QPushButton#ToolButton {
+                padding: 3px 8px;
+                min-width: 60px;
+                text-align: center;
             }
-            #VisPanel QPushButton:hover { background: #1a3263; }
-            #OpsPanel QPushButton:hover { background: #1a3263; }
-            #FiltersPanel QPushButton:hover { background: #1a3263; }
-
-            #VisPanel QPushButton {
-                background: #2a1a52;
+            
+            /* Sub-panel buttons */
+            QPushButton#SubButton {
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 2px;
+                padding: 2px 8px;
+                font-size: 8.5pt;
+                min-height: 20px;
             }
-            #FiltersPanel QPushButton {
-                background: #521a2a;
+            
+            QPushButton#SubButton:hover {
+                background-color: #E8F0FF;
+                border: 1px solid #316AC5;
             }
-
+            
+            QPushButton#SubButton:pressed {
+                background-color: #C8D8F8;
+                padding: 3px 7px 1px 9px;
+            }
+            
+            /* Text areas */
             QTextEdit {
-                background: #0f1626;
-                color: #e8eefc;
-                border: 1px solid #26324a;
-                border-radius: 10px;
-                font-family: Consolas, monospace;
-                font-size: 12px;
+                background-color: #FFFFFF;
+                border: 1px solid #808080;
+                border-radius: 2px;
+                font-family: Consolas;
+                font-size: 9pt;
+                color: #000000;
             }
-
-            #StatusLabel {
-                color: #cbd6f1;
-                padding-top: 6px;
-                font-size: 11px;
+            
+            QTextEdit#StatsBox {
+                background-color: #F8F8F8;
+            }
+            
+            /* Labels */
+            QLabel#TaskTitle {
+                color: #000080;
+                background-color: transparent;
+                padding: 2px;
+            }
+            
+            QLabel#StatusLabel {
+                color: #000000;
+                background-color: transparent;
+                font-style: italic;
+            }
+            
+            QLabel#StatsTitle, QLabel#VisTitle {
+                color: #000080;
+                background-color: transparent;
+            }
+            
+            /* Graphics View */
+            QGraphicsView#ImageView {
+                background-color: #F0F0F0;
+                border: 1px solid #808080;
+                border-radius: 2px;
             }
         """)
 
         self.enable_image_actions(False)
 
+    def create_xp_button(self, text, callback):
+        """Create Windows XP style main button"""
+        btn = QPushButton(text)
+        btn.setFont(QFont("Tahoma", 9))
+        if callback:
+            btn.clicked.connect(callback)
+        return btn
+
+    def create_sub_button(self, text, callback):
+        """Create Windows XP style sub-panel button"""
+        btn = QPushButton(text)
+        btn.setObjectName("SubButton")
+        btn.setFont(QFont("Tahoma", 8))
+        if isinstance(callback, str):
+            btn.clicked.connect(lambda: self.set_visualization_mode(callback))
+        elif callback:
+            btn.clicked.connect(callback)
+        return btn
+
+    def create_tool_button(self, text, callback):
+        """Create Windows XP style toolbar button"""
+        btn = QPushButton(text)
+        btn.setObjectName("ToolButton")
+        btn.setFont(QFont("Tahoma", 9))
+        btn.clicked.connect(callback)
+        return btn
+
     # ---------- UI helpers ----------
 
     def set_status(self, text):
-        self.status_label.setText(f"Status: {text}")
+        self.status_label.setText(f" {text}")
 
     def toggle_visualization_panel(self):
         self.visualization_panel.setVisible(self.btn_visualization.isChecked())
@@ -401,10 +563,11 @@ class ImageAnalyzer(QMainWindow):
             "rgb": "RGB Channels",
             "combined": "Combined View"
         }
-        self.set_status(f"Visualization mode: {mode_names[mode]}")
+        self.set_status(f"View changed to: {mode_names[mode]}")
 
     def enable_image_actions(self, enabled):
         self.btn_reset.setEnabled(enabled)
+        self.btn_export.setEnabled(enabled)
         self.btn_visualization.setEnabled(enabled)
         self.btn_ops.setEnabled(enabled)
         self.btn_filters.setEnabled(enabled)
@@ -419,7 +582,6 @@ class ImageAnalyzer(QMainWindow):
 
         self.btn_fit.setEnabled(enabled)
         self.btn_reset_zoom.setEnabled(enabled)
-        self.btn_export.setEnabled(enabled)
 
     # ---------- File operations ----------
 
@@ -440,7 +602,7 @@ class ImageAnalyzer(QMainWindow):
         self.working_bgr = img.copy()
 
         self.enable_image_actions(True)
-        self.set_status("Image loaded")
+        self.set_status("Image loaded successfully")
 
         self.update_display()
         self.fit_to_window()
@@ -450,24 +612,29 @@ class ImageAnalyzer(QMainWindow):
         if self.original_bgr is None:
             return
         self.working_bgr = self.original_bgr.copy()
-        self.set_status("Reset to original")
+        self.set_status("Image restored to original")
         self.update_display()
         self.fit_to_window()
         self.update_analysis()
 
     def clear_all(self):
-        self.original_bgr = None
-        self.working_bgr = None
+        reply = QMessageBox.question(self, 'Clear Workspace', 
+                                   'Are you sure you want to clear the workspace?',
+                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            self.original_bgr = None
+            self.working_bgr = None
 
-        self.pix_item.setPixmap(QPixmap())
-        self.scene.setSceneRect(0, 0, 1, 1)
+            self.pix_item.setPixmap(QPixmap())
+            self.scene.setSceneRect(0, 0, 1, 1)
 
-        self.stats_box.clear()
-        self.canvas.ax.clear()
-        self.canvas.draw()
+            self.stats_box.clear()
+            self.canvas.ax.clear()
+            self.canvas.draw()
 
-        self.enable_image_actions(False)
-        self.set_status("No image loaded")
+            self.enable_image_actions(False)
+            self.set_status("Workspace cleared")
 
     # ---------- Display & analysis ----------
 
@@ -482,16 +649,18 @@ class ImageAnalyzer(QMainWindow):
         if self.pix_item.pixmap().isNull():
             return
         self.image_view.fitInView(self.pix_item, Qt.AspectRatioMode.KeepAspectRatio)
+        self.set_status("Image fitted to window")
 
     def reset_zoom(self):
         self.image_view.resetTransform()
+        self.set_status("Zoom reset to 1:1")
 
     def export_image(self):
         if self.working_bgr is None:
             return
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Image",
+            "Save Image As",
             "",
             "PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp);;TIFF (*.tif *.tiff)"
         )
@@ -500,9 +669,9 @@ class ImageAnalyzer(QMainWindow):
 
         ok = cv2.imwrite(path, self.working_bgr)
         if not ok:
-            QMessageBox.critical(self, "Error", "Failed to export image.")
+            QMessageBox.critical(self, "Error", "Failed to save image.")
         else:
-            QMessageBox.information(self, "Export", "Image exported successfully.")
+            self.set_status(f"Image saved to: {path}")
 
     def update_analysis(self):
         if self.working_bgr is None:
@@ -533,32 +702,28 @@ class ImageAnalyzer(QMainWindow):
         ax.clear()
 
         if self.visualization_mode == "combined":
-            # Original combined view
             ax.hist((R * 255).ravel(), bins=256, alpha=0.35, label="R", range=(0, 255), color='red')
             ax.hist((G * 255).ravel(), bins=256, alpha=0.35, label="G", range=(0, 255), color='green')
             ax.hist((B * 255).ravel(), bins=256, alpha=0.35, label="B", range=(0, 255), color='blue')
-            ax.set_title("RGB Histograms")
-            ax.set_xlabel("Value (0-255)")
+            ax.set_title("RGB Histograms", fontsize=10, color='#000080')
+            ax.set_xlabel("Value (0-255)", fontsize=9)
             
         elif self.visualization_mode == "hsi":
-            # HSI components
             ax.hist(H.ravel(), bins=180, alpha=0.7, label="Hue", range=(0, 360), color='purple')
             ax.hist(S.ravel(), bins=100, alpha=0.7, label="Saturation", range=(0, 1), color='orange')
             ax.hist(I.ravel(), bins=100, alpha=0.7, label="Intensity", range=(0, 1), color='cyan')
-            ax.set_title("HSI Components")
-            ax.set_xlabel("Value")
+            ax.set_title("HSI Components", fontsize=10, color='#000080')
+            ax.set_xlabel("Value", fontsize=9)
             
         elif self.visualization_mode == "histogram":
-            # Enhanced histogram view
             ax.hist((R * 255).ravel(), bins=256, alpha=0.6, label="Red", range=(0, 255), color='red', histtype='stepfilled')
             ax.hist((G * 255).ravel(), bins=256, alpha=0.6, label="Green", range=(0, 255), color='green', histtype='stepfilled')
             ax.hist((B * 255).ravel(), bins=256, alpha=0.6, label="Blue", range=(0, 255), color='blue', histtype='stepfilled')
             ax.hist(I.ravel() * 255, bins=256, alpha=0.3, label="Intensity", range=(0, 255), color='gray', histtype='step')
-            ax.set_title("Enhanced Histograms")
-            ax.set_xlabel("Value (0-255)")
+            ax.set_title("Enhanced Histograms", fontsize=10, color='#000080')
+            ax.set_xlabel("Value (0-255)", fontsize=9)
             
         elif self.visualization_mode == "rgb":
-            # RGB channels separately
             colors = ['red', 'green', 'blue']
             channels = [R*255, G*255, B*255]
             labels = ['Red Channel', 'Green Channel', 'Blue Channel']
@@ -566,12 +731,13 @@ class ImageAnalyzer(QMainWindow):
             for i, (channel, color, label) in enumerate(zip(channels, colors, labels)):
                 ax.hist(channel.ravel(), bins=256, alpha=0.7, label=label, 
                        range=(0, 255), color=color, histtype='stepfilled' if i==0 else 'step')
-            ax.set_title("RGB Channel Distributions")
-            ax.set_xlabel("Value (0-255)")
+            ax.set_title("RGB Channel Distributions", fontsize=10, color='#000080')
+            ax.set_xlabel("Value (0-255)", fontsize=9)
 
-        ax.set_ylabel("Pixel Count")
-        ax.legend(loc='upper right')
-        ax.grid(True, alpha=0.2)
+        ax.set_ylabel("Pixel Count", fontsize=9)
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_facecolor('#F8F8F8')
         self.canvas.fig.tight_layout()
         self.canvas.draw()
 
@@ -615,28 +781,22 @@ class ImageAnalyzer(QMainWindow):
         rows, cols = shape
         crow, ccol = rows // 2, cols // 2
         
-        # Create distance matrix
         y, x = np.ogrid[:rows, :cols]
         distance = np.sqrt((x - ccol)**2 + (y - crow)**2)
         
         if filter_type == "lowpass":
-            # Ideal low-pass filter
             filter_mask = np.zeros((rows, cols))
             filter_mask[distance <= cutoff] = 1
             
         elif filter_type == "highpass":
-            # Ideal high-pass filter
             filter_mask = np.ones((rows, cols))
             filter_mask[distance <= cutoff] = 0
             
         elif filter_type == "gaussian":
-            # Gaussian filter
             filter_mask = np.exp(-(distance**2) / (2 * (cutoff**2)))
             
         elif filter_type == "notchpass":
-            # Notch pass filter (removes specific frequencies)
             filter_mask = np.ones((rows, cols))
-            # Create multiple notch points
             notch_points = [(crow + 30, ccol + 30), (crow - 30, ccol - 30),
                            (crow + 30, ccol - 30), (crow - 30, ccol + 30)]
             for point in notch_points:
@@ -646,9 +806,7 @@ class ImageAnalyzer(QMainWindow):
                 filter_mask[mask] = 0
                 
         elif filter_type == "notchreject":
-            # Notch reject filter (opposite of notch pass)
             filter_mask = np.zeros((rows, cols))
-            # Create multiple notch points
             notch_points = [(crow + 30, ccol + 30), (crow - 30, ccol - 30),
                            (crow + 30, ccol - 30), (crow - 30, ccol + 30)]
             for point in notch_points:
@@ -663,30 +821,24 @@ class ImageAnalyzer(QMainWindow):
         if self.working_bgr is None:
             return
             
-        # Apply filter to each channel
         filtered_channels = []
         for i in range(3):
             channel = self.working_bgr[:, :, i].astype(np.float32)
             
-            # Perform FFT
             f = np.fft.fft2(channel)
             fshift = np.fft.fftshift(f)
             
-            # Create filter
             rows, cols = channel.shape
             filter_mask = self.create_filter((rows, cols), filter_type, cutoff=30)
             
-            # Apply filter
             fshift_filtered = fshift * filter_mask
             
-            # Inverse FFT
             f_ishift = np.fft.ifftshift(fshift_filtered)
             img_back = np.fft.ifft2(f_ishift)
             img_back = np.abs(img_back)
             
             filtered_channels.append(img_back)
         
-        # Combine channels
         self.working_bgr = np.stack(filtered_channels, axis=2).astype(np.uint8)
         
         filter_names = {
@@ -704,6 +856,7 @@ class ImageAnalyzer(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    app.setFont(QFont("Tahoma", 9))
     win = ImageAnalyzer()
     win.show()
     sys.exit(app.exec())
